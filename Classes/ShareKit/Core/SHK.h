@@ -28,36 +28,32 @@
 #define SHK_VERSION @"0.2.1"
 
 #import <Foundation/Foundation.h>
-#import "DefaultSHKConfigurator.h"
-#import "SHKItem.h"
-#import "SHKActionSheet.h"
-#import "SHKRequest.h"
-#import "SHKActivityIndicator.h"
-#import "SHKFormFieldSettings.h"
-#import "UIWebView+SHK.h"
-
-extern NSString * const SHKHideCurrentViewFinishedNotification;
 
 @class SHKActionSheet;
-@class SHKViewControllerWrapper;
+@class SHKItem;
+@class SHKSharer;
+@class SHKUploadInfo;
 
+extern NSString * const SHKAuthDidFinishNotification;
+extern NSString * const SHKSendDidStartNotification;
+extern NSString * const SHKSendDidFailWithErrorNotification;
+extern NSString * const SHKSendDidCancelNotification;
+
+extern NSString * const SHKSendDidFinishNotification;
+extern NSString * const SHKShareResponseKeyName;
+
+extern NSString * const SHKUploadProgressNotification;
+extern NSString * const SHKUploadProgressInfoKeyName;
+extern NSString * const SHKUploadInfosDefaultsKeyName;
 
 @interface SHK : NSObject 
-{
-	UIViewController *currentView;
-	UIViewController *pendingView;
-	BOOL isDismissingView;
-	
-	NSOperationQueue *offlineQueue;
-}
 
-@property (nonatomic, retain) UIViewController *currentView;
-@property (nonatomic, retain) UIViewController *pendingView;
+@property (nonatomic, strong) UIViewController *currentView;
+@property (nonatomic, strong) UIViewController *pendingView;
 @property BOOL isDismissingView;
 
-@property (nonatomic, retain) NSOperationQueue *offlineQueue;
-
-
+@property (nonatomic, strong) NSOperationQueue *offlineQueue;
+@property (readonly) NSMutableOrderedSet *uploadProgressUserInfos;
 
 #pragma mark -
 
@@ -65,32 +61,52 @@ extern NSString * const SHKHideCurrentViewFinishedNotification;
 
 + (NSDictionary *)sharersDictionary;
 
+///returns array of classes of existing sharers which can share and require authentication.
++ (NSArray *)activeSharersRequiringAuthentication;
+
+#pragma mark -
+#pragma mark Sharer Management
+
+///some sharers need to be retained until callback from UI or web service, otherwise they would be prematurely deallocated. Each sharer is responsible for removing itself on callback.
+- (void)keepSharerReference:(SHKSharer *)sharer;
+///Warning: this method removes only the first occurence of the sharer. If the sharer is on multiple indexes, the sharer's implementation is responsible to remove each one separately. The reason is pendingShare - the sharer might finish authentication, thus remove itself. Then it would be unavailable for callback after finishing subsequent pending share.
+- (void)removeSharerReference:(SHKSharer *)sharer;
+
+#pragma mark -
+#pragma mark - Uploads Progress Management
+
+/*!
+ Each time there is a change of upload status (start, finish, failure, cancel) this method should be called. Saves the upload info reference to uploadProgressUserInfos property, and saves the change persistently to NSUserDefaults. Do not call this each time when upload bytes progress is reported, because saving to NSUserDefaults is expensive and unneccessary. Bytes progress is reported using SHKUploadProgressNotification.
+ @param uploadProgressUserInfo
+ Changed upload info
+ */
+- (void)uploadInfoChanged:(SHKUploadInfo *)uploadProgressUserInfo;
 
 #pragma mark -
 #pragma mark View Management
 
 + (void)setRootViewController:(UIViewController *)vc;
 
-//returns current topViewController for classes, which do not use SHK to present their UI
-- (UIViewController *)rootViewForCustomUIDisplay;
+/* original show method, wraps the view to UINavigationViewController prior presenting, if not already a UINavigationViewController */
 - (void)showViewController:(UIViewController *)vc;
+/* displays sharers with custom UI - without wrapping */
+- (void)showStandaloneViewController:(UIViewController *)vc;
+/* returns current top view controller to display UI from */
+- (UIViewController *)rootViewForUIDisplay;
+
 - (void)hideCurrentViewControllerAnimated:(BOOL)animated;
 - (void)viewWasDismissed;
 
 + (UIBarStyle)barStyle;
-+ (UIModalPresentationStyle)modalPresentationStyle;
-+ (UIModalTransitionStyle)modalTransitionStyle;
++ (UIModalPresentationStyle)modalPresentationStyleForController:(UIViewController *)controller;
++ (UIModalTransitionStyle)modalTransitionStyleForController:(UIViewController *)controller;
 
 #pragma mark -
 #pragma mark Favorites
 
-+ (NSArray *)favoriteSharersForType:(SHKShareType)type;
-+ (void)pushOnFavorites:(NSString *)className forType:(SHKShareType)type;
-+ (void)setFavorites:(NSArray *)favs forType:(SHKShareType)type;
-
-+ (NSDictionary *)getUserExclusions;
-+ (void)setUserExclusions:(NSDictionary *)exclusions;
-
++ (NSArray *)favoriteSharersForItem:(SHKItem *)item;
++ (void)pushOnFavorites:(NSString *)className forItem:(SHKItem *)item;
++ (void)setFavorites:(NSArray *)favs forItem:(SHKItem *)item;
 
 #pragma mark -
 #pragma mark Credentials
@@ -123,8 +139,7 @@ extern NSString * const SHKHideCurrentViewFinishedNotification;
 
 @end
 
-NSString * SHKStringOrBlank(NSString * value);
 NSString * SHKEncode(NSString * value);
 NSString * SHKEncodeURL(NSURL * value);
+NSString * SHKFlattenHTML(NSString * value, BOOL preserveLineBreaks);
 NSString * SHKLocalizedString(NSString* key, ...);
-void SHKSwizzle(Class c, SEL orig, SEL newClassName);

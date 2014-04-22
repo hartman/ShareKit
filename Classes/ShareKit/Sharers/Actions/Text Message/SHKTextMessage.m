@@ -26,31 +26,21 @@
 //
 
 #import "SHKTextMessage.h"
-
-
-@implementation MFMessageComposeViewController (SHK)
-
-- (void)SHKviewDidDisappear:(BOOL)animated
-{
-	[super viewDidDisappear:animated];
-	
-	// Remove the SHK view wrapper from the window (but only if the view doesn't have another modal over it)
-	if (self.modalViewController == nil)
-		[[SHK currentHelper] viewWasDismissed];
-}
-
-@end
-
-
+#import "SharersCommonHeaders.h"
 
 @implementation SHKTextMessage
 
 #pragma mark -
 #pragma mark Configuration : Service Defination
 
++ (BOOL)composerSupportsAttachment
+{
+	return [[MFMessageComposeViewController class] respondsToSelector:@selector(canSendAttachments)];
+}
+
 + (NSString *)sharerTitle
 {
-	return @"SMS";
+	return SHKLocalizedString(@"SMS");
 }
 
 + (BOOL)canShareText
@@ -65,11 +55,15 @@
 
 + (BOOL)canShareImage
 {
-	return NO;
+	return [self composerSupportsAttachment] && [MFMessageComposeViewController canSendAttachments];
 }
 
-+ (BOOL)canShareFile
-{
++ (BOOL)canShareFile:(SHKFile *)file {
+    
+    if ([self composerSupportsAttachment] && [MFMessageComposeViewController canSendAttachments] && [MFMessageComposeViewController isSupportedAttachmentUTI:file.UTIType]) {
+
+		return YES;
+	}
 	return NO;
 }
 
@@ -83,7 +77,6 @@
 	return NO;
 }
 
-
 #pragma mark -
 #pragma mark Configuration : Dynamic Enable
 
@@ -91,13 +84,6 @@
 {
 	return [MFMessageComposeViewController canSendText];
 }
-
-- (BOOL)shouldAutoShare
-{
-	return YES;
-}
-
-
 
 #pragma mark -
 #pragma mark Share API Methods
@@ -113,43 +99,58 @@
 }
 
 - (BOOL)sendText
-{	
-	MFMessageComposeViewController *composeView = [[[MFMessageComposeViewController alloc] init] autorelease];
+{
+	MFMessageComposeViewController *composeView = [[MFMessageComposeViewController alloc] init];
 	composeView.messageComposeDelegate = self;
 	
-	NSString * body = [item customValueForKey:@"body"];
-	
-	if (!body) {
-		if (item.text != nil)
-			body = item.text;
-		
-		if (item.URL != nil)
-		{	
-			NSString *urlStr = [item.URL.absoluteString stringByReplacingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
-			
-			if (body != nil)
-				body = [body stringByAppendingFormat:@"<br/><br/>%@", urlStr];
-			
-			else
-				body = urlStr;
-		}
-		
-		// fallback
-		if (body == nil)
-			body = @"";
-		
-		// save changes to body
-		[item setCustomValue:body forKey:@"body"];
-	}
-	
+	NSString *body = self.item.text;
+    
+    if (self.item.URL) {
+        NSString *urlStr = [self.item.URL.absoluteString stringByReplacingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
+        body = [self appendText:urlStr toBody:body];
+    }
+    
+    if (self.item.title) {
+        body = [self appendText:self.item.title toBody:body];
+    }
+    
+    // fallback
+    if (body == nil)
+        body = @"";
+
 	[composeView setBody:body];
+	
+	NSArray *toRecipients = self.item.textMessageToRecipients;
+	if (toRecipients)
+		[composeView setRecipients:toRecipients];
+	
+	if (self.item.shareType == SHKShareTypeImage) {
+        [self.item convertImageShareToFileShareOfType:SHKImageConversionTypeJPG	quality:self.item.mailJPGQuality];
+		// using this function creates a properly named file.
+    }
+	if (self.item.file) {
+		[composeView addAttachmentURL:self.item.file.URL withAlternateFilename:nil];
+	}
+		
+	
 	[[SHK currentHelper] showViewController:composeView];
-    [self retain]; //release is in callback, MFMessageComposeViewController does not retain its delegate
+    [[SHK currentHelper] keepSharerReference:self]; //release is in callback, MFMessageComposeViewController does not retain its delegate
 	
 	return YES;
 }
 
-- (void)messageComposeViewController:(MFMessageComposeViewController *)controller 
+- (NSString *)appendText:(NSString *)string toBody:(NSString *)body {
+    
+    NSString *result = nil;
+    if (body) {
+        result = [body stringByAppendingFormat:@"<br/><br/>%@", string];
+    } else {
+        result = string;
+    }
+    return result;
+}
+
+- (void)messageComposeViewController:(MFMessageComposeViewController *)controller
 				 didFinishWithResult:(MessageComposeResult)result 
 {
     switch (result)
@@ -167,8 +168,7 @@
 			break;
 	}
     [[SHK currentHelper] hideCurrentViewControllerAnimated:YES];
-    [self autorelease]; //retained in [self sendText] method
+    [[SHK currentHelper] removeSharerReference:self]; //retained in [self sendText] method
 }
-
 
 @end

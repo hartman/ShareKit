@@ -26,7 +26,7 @@
 //
 
 #import "SHKCopy.h"
-
+#import "SharersCommonHeaders.h"
 
 @implementation SHKCopy
 
@@ -36,6 +36,11 @@
 + (NSString *)sharerTitle
 {
 	return SHKLocalizedString(@"Copy");
+}
+
++ (BOOL)canShareText
+{
+	return YES;
 }
 
 + (BOOL)canShareURL
@@ -60,7 +65,7 @@
 
 - (void) placeImageOnPasteboard
 {
-	[[UIPasteboard generalPasteboard] setImage:item.image];
+	[[UIPasteboard generalPasteboard] setImage:self.item.image];
 }
 
 #pragma mark -
@@ -77,13 +82,15 @@
 
 - (BOOL)send
 {	
-	if (item.shareType == SHKShareTypeURL)
-		[[UIPasteboard generalPasteboard] setString:item.URL.absoluteString];
-	else if(item.shareType == SHKShareTypeImage)
+	if (self.item.shareType == SHKShareTypeURL)
+		[[UIPasteboard generalPasteboard] setString:self.item.URL.absoluteString];
+	else if(self.item.shareType == SHKShareTypeImage)
 		[self placeImageOnPasteboard];
+    else if (self.item.shareType == SHKShareTypeText)
+        [[UIPasteboard generalPasteboard] setString:self.item.text];
 	
 	// Notify user
-	[[SHKActivityIndicator currentIndicator] displayCompleted:SHKLocalizedString(@"Copied!")];
+	[self displayCompleted:SHKLocalizedString(@"Copied!")];
 	
 	// Notify delegate, but quietly
 	self.quiet = YES;

@@ -3,6 +3,7 @@
 //  ShareKit
 //
 //  Created by Nathan Weiner on 6/18/10.
+//	3.0 SDK rewrite - Steven Troppoli 9/25/2012
 
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -26,12 +27,19 @@
 //
 
 #import <Foundation/Foundation.h>
-#import "Facebook.h"
 #import "SHKSharer.h"
-#import "SHKFormControllerLargeTextField.h"
 
-@interface SHKFacebook : SHKSharer <FBSessionDelegate, FBDialogDelegate, FBRequestDelegate, SHKFormControllerLargeTextFieldDelegate>
+@interface SHKFacebook : SHKSharer
+
+@property (readonly,strong) NSMutableSet* pendingConnections; // sub classes can use the set. use a set so that connections can only be added once
 
 + (BOOL)handleOpenURL:(NSURL*)url;
++ (void)handleDidBecomeActive;
++ (void)handleWillTerminate;
 
+// override point for subclasses that want to do something interesting while sending non-nativly
+- (void)doSend;
+// keep in mind of you add requests as a subclass, you need to cancel them yourself and remove
+// them from the pending set. The base version will cancel anything that responds to the cancel selector
+- (void)cancelPendingRequests;
 @end

@@ -25,7 +25,10 @@
 
 
 #import "OAMutableURLRequest.h"
-#import "DefaultSHKConfigurator.h"
+#import "Debug.h"
+
+#import "OARequestParameter.h"
+#import "NSURL+Base.h"
 
 
 @interface OAMutableURLRequest (Private)
@@ -159,7 +162,7 @@ signatureProvider:(id<OASignatureProviding, NSObject>)aProvider
     
     // set OAuth headers
     NSString *oauthToken;
-    if ([token.key isEqualToString:@""])
+    if (token.key.length == 0)
         oauthToken = @""; // not used on Request Token transactions
     else
         oauthToken = [NSString stringWithFormat:@"oauth_token=\"%@\", ", [token.key URLEncodedString]];
@@ -192,7 +195,7 @@ signatureProvider:(id<OASignatureProviding, NSObject>)aProvider
 
 - (void)_generateTimestamp
 {
-    timestamp = [[NSString stringWithFormat:@"%d", time(NULL)] retain];
+    timestamp = [[NSString stringWithFormat:@"%ld", time(NULL)] retain];
 }
 
 - (void)_generateNonce
@@ -218,13 +221,13 @@ signatureProvider:(id<OASignatureProviding, NSObject>)aProvider
 	[parameterPairs addObject:[[OARequestParameter requestParameterWithName:@"oauth_nonce" value:nonce] URLEncodedNameValuePair]];
 	[parameterPairs addObject:[[OARequestParameter requestParameterWithName:@"oauth_version" value:@"1.0"] URLEncodedNameValuePair]];
     
-    if (![token.key isEqualToString:@""]) {
+    if (token.key.length > 0) {
         [parameterPairs addObject:[[OARequestParameter requestParameterWithName:@"oauth_token" value:token.key] URLEncodedNameValuePair]];
     }
     
 	
 	for(NSString *parameterName in [[extraOAuthParameters allKeys] sortedArrayUsingSelector:@selector(compare:)]) {
-		[parameterPairs addObject:[[OARequestParameter requestParameterWithName:[parameterName URLEncodedString] value: [[extraOAuthParameters objectForKey:parameterName] URLEncodedString]] URLEncodedNameValuePair]];
+		[parameterPairs addObject:[[OARequestParameter requestParameterWithName:parameterName value:[extraOAuthParameters objectForKey:parameterName]] URLEncodedNameValuePair]];
 	}
 	
 	if (![[self valueForHTTPHeaderField:@"Content-Type"] hasPrefix:@"multipart/form-data"]) {
@@ -242,9 +245,16 @@ signatureProvider:(id<OASignatureProviding, NSObject>)aProvider
 					 [[[self URL] URLStringWithoutQuery] URLEncodedString],
 					 [normalizedRequestParameters URLEncodedString]];
 	
-	SHKLog(@"OAMutableURLRequest parameters %@", normalizedRequestParameters);
+	//SHKLog(@"OAMutableURLRequest parameters %@ \n signature:%@", normalizedRequestParameters, ret);
 	
 	return ret;
+}
+
+//not in NSMutableURLRequest category. A class should know nothing about its subclasses.
+- (void)attachFile:(SHKFile *)file withParameterName:(NSString *)name {
+    
+    [self prepare];
+    [super attachFile:file withParameterName:name];
 }
 
 @end

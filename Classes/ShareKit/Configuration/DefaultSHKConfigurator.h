@@ -25,38 +25,37 @@
 //
 //
 
-/*
- Debugging
- ------
- To show ShareKit specific debug output in the console, define _SHKDebugShowLogs (uncomment next line).
- */
-//#define _SHKDebugShowLogs
-
-#ifdef _SHKDebugShowLogs
-#define SHKDebugShowLogs			1
-#define SHKLog( s, ... ) NSLog( @"<%p %@:(%d)> %@", self, [[NSString stringWithUTF8String:__FILE__] lastPathComponent], __LINE__, [NSString stringWithFormat:(s), ##__VA_ARGS__] )
-#else
-#define SHKDebugShowLogs			0
-#define SHKLog( s, ... )
-#endif
-
 #import <Foundation/Foundation.h>
+
+@class SHKFile;
 
 @interface DefaultSHKConfigurator : NSObject 
 
 - (NSString*)appName;
 - (NSString*)appURL;
+- (NSArray*)defaultFavoriteURLSharers;
+- (NSArray*)defaultFavoriteImageSharers;
+- (NSArray*)defaultFavoriteTextSharers;
+- (NSArray*)defaultFavoriteFileSharers __attribute__((deprecated("use defaultFavoriteSharersForFile: instead")));
+- (NSArray*)defaultFavoriteSharersForMimeType:(NSString *)mimeType __attribute__((deprecated("use defaultFavoriteSharersForFile: instead")));
+- (NSArray*)defaultFavoriteSharersForFile:(SHKFile *)file;
+- (NSString*)onenoteClientId;
 - (NSString*)vkontakteAppId;
 - (NSString*)facebookAppId;
 - (NSString*)facebookLocalAppId;
-- (NSString*)readItLaterKey;
+- (NSArray*)facebookWritePermissions;
+- (NSArray*)facebookReadPermissions;
+- (NSNumber*)forcePreIOS6FacebookPosting;
+- (NSString *)pocketConsumerKey;
+- (NSString*)diigoKey;
+- (NSNumber*)forcePreIOS5TwitterAccess;
+- (NSString*)googlePlusClientId;
 - (NSString*)twitterConsumerKey;
 - (NSString*)twitterSecret;
 - (NSString*)twitterCallbackUrl;
 - (NSNumber*)twitterUseXAuth;
 - (NSString*)twitterUsername;
-- (NSString*)evernoteUserStoreURL;
-- (NSString*)evernoteNetStoreURLBase;
+- (NSString*)evernoteHost;
 - (NSString*)evernoteConsumerKey;
 - (NSString*)evernoteSecret;
 - (NSString*)flickrConsumerKey;
@@ -67,26 +66,75 @@
 - (NSString*)linkedInConsumerKey;
 - (NSString*)linkedInSecret;
 - (NSString*)linkedInCallbackUrl;
+- (NSString*)readabilityConsumerKey;
+- (NSString*)readabilitySecret;
+- (NSNumber*)readabilityUseXAuth;
 - (NSString*)foursquareV2ClientId;
 - (NSString*)foursquareV2RedirectURI;
+- (NSString*)tumblrConsumerKey;
+- (NSString*)tumblrSecret;
+- (NSString*)tumblrCallbackUrl;
+- (NSString*)hatenaConsumerKey;
+- (NSString*)hatenaSecret;
+- (NSString*)hatenaScope;
+- (NSString *)plurkAppKey;
+- (NSString *)plurkAppSecret;
+- (NSString *)plurkCallbackURL;
+- (NSNumber *)instagramLetterBoxImages;
+- (UIColor *)instagramLetterBoxColor;
+- (NSNumber *)instagramOnly;
+- (NSString*)youTubeConsumerKey;
+- (NSString*)youTubeSecret;
+- (NSNumber *)useAppleShareUI;
 - (NSNumber*)shareMenuAlphabeticalOrder;
-- (NSNumber*)sharedWithSignature;
 - (NSString*)barStyle;
 - (UIColor*)barTintForView:(UIViewController*)vc;
-- (NSNumber*)formFontColorRed;
-- (NSNumber*)formFontColorGreen;
-- (NSNumber*)formFontColorBlue;
-- (NSNumber*)formBgColorRed;
-- (NSNumber*)formBgColorGreen;
-- (NSNumber*)formBgColorBlue;
-- (NSString*)modalPresentationStyle;
-- (NSString*)modalTransitionStyle;
+- (UIColor*)formFontColor;
+- (UIColor*)formBackgroundColor;
+- (NSString*)modalPresentationStyleForController:(UIViewController *)controller;
+- (NSString*)modalTransitionStyleForController:(UIViewController *)controller;
 - (NSNumber*)maxFavCount;
+- (NSNumber*)autoOrderFavoriteSharers;
 - (NSString*)favsPrefixKey;
 - (NSString*)authPrefix;
 - (NSString*)sharersPlistName;
+- (NSNumber*)showActionSheetMoreButton;
 - (NSNumber*)allowOffline;
 - (NSNumber*)allowAutoShare;
-- (NSNumber*)usePlaceholders;
+- (Class)SHKShareMenuSubclass;
+- (Class)SHKShareMenuCellSubclass;
+- (Class)SHKFormControllerSubclass;
+- (Class)SHKUploadsViewControllerSubclass;
+- (Class)SHKAccountsViewControllerSubclass;
+- (Class)SHKActivityIndicatorSubclass;
+//SHKDropbox
+-(NSString *)dropboxAppKey;
+-(NSString *)dropboxAppSecret;
+-(NSString *)dropboxRootFolder;
+-(NSNumber *)dropboxShouldOverwriteExistedFile;
+//SHKBuffer
+- (NSNumber *)bufferShouldShortenURLS;
+//SHKImgur
+- (NSString *)imgurClientID;
+- (NSString *)imgurClientSecret;
+- (NSString *)imgurCallbackURL;
+
+#pragma mark - default values for sharer specific extension SHKItem properties
+//SHKPrint
+- (NSNumber*)printOutputType;
+//SHKMail
+- (NSArray *)mailToRecipients;
+- (NSNumber*)isMailHTML;
+- (NSNumber*)mailJPGQuality;
+- (NSNumber*)sharedWithSignature;
+//SHKFacebook
+- (NSString *)facebookURLSharePictureURI;
+- (NSString *)facebookURLShareDescription;
+//SHKTextMessage
+- (NSArray *)textMessageToRecipients;
+//SHKInstagram and future others
+-(NSString*) popOverSourceRect;
+//SHKDropbox
+- (NSString *)dropboxDestinationDirectory;
 
 @end

@@ -29,8 +29,11 @@
 #import "SHKShareMenu.h"
 #import "SHK.h"
 #import "SHKSharer.h"
-#import "SHKCustomShareMenuCell.h"
 #import "SHKShareItemDelegate.h"
+
+@interface SHKShareMenu()
+@property (strong) SHKSharer* limboSharer;
+@end
 
 @implementation SHKShareMenu
 
@@ -38,18 +41,10 @@
 @synthesize tableData;
 @synthesize exclusions;
 @synthesize shareDelegate;
+@synthesize limboSharer;
 
 #pragma mark -
 #pragma mark Initialization
-
-- (void)dealloc 
-{
-	[item release];
-	[tableData release];
-	[exclusions release];
-	[shareDelegate release];
-    [super dealloc];
-}
 
 
 - (id)initWithStyle:(UITableViewStyle)style
@@ -58,32 +53,42 @@
 	{
 		self.title = SHKLocalizedString(@"Share");
 		
-		self.navigationItem.leftBarButtonItem = [[[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemCancel
-																							  target:self
-																							  action:@selector(cancel)] autorelease];
+		self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemCancel
+                                                                                               target:self
+                                                                                               action:@selector(cancel)];
 		
-		self.navigationItem.rightBarButtonItem = [[[UIBarButtonItem alloc] initWithTitle:SHKLocalizedString(@"Edit")
-																				  style:UIBarButtonItemStyleBordered
-																				 target:self
-                                                                                  action:@selector(edit)] autorelease];
-		
+		self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemEdit
+                                                                                                target:self
+                                                                                                action:@selector(edit)];
+        
+        self.tableView.separatorStyle = UITableViewCellSeparatorStyleSingleLine;
 	}
+    
 	return self;
+}
+
+- (void)viewDidLoad
+{
+    [super viewDidLoad];
+    
+    if (SHKCONFIG(formBackgroundColor) != nil)
+	{
+		self.tableView.backgroundView = nil;
+        self.tableView.backgroundColor = SHKCONFIG(formBackgroundColor);
+	}
 }
 
 - (void)viewDidDisappear:(BOOL)animated
 {
 	[super viewDidDisappear:animated];
 	
-	// Remove the SHK view wrapper from the window
-	[[SHK currentHelper] viewWasDismissed];
+    if(self.limboSharer != nil)
+		[self.limboSharer share];
 }
-
 
 - (void)setItem:(SHKItem *)i
 {
-	[item release];
-	item = [i retain];
+	item = i;
 	
 	[self rebuildTableDataAnimated:NO];
 }
@@ -94,17 +99,27 @@
 	self.tableData = [NSMutableArray arrayWithCapacity:0];
 	[tableData addObject:[self section:@"actions"]];
 	[tableData addObject:[self section:@"services"]];
-		
+    
 	// Handling Excluded items
 	// If in editing mode, show them
 	// If not editing, hide them
-	self.exclusions = [[[[NSUserDefaults standardUserDefaults] objectForKey:@"SHKExcluded"] mutableCopy] autorelease];
 	
-	if (exclusions == nil)
-		self.exclusions = [NSMutableDictionary dictionaryWithCapacity:0];
-	
+    if([[NSUserDefaults standardUserDefaults] objectForKey:@"SHKExcluded"] != nil){
+    
+        NSObject *excluded = [[NSUserDefaults standardUserDefaults] objectForKey:@"SHKExcluded"];
+        
+        //due to backwards compatibility - SHKExcluded used to be saved as NSDictionary. It is better as NSArray, as favourites are NSArray too.
+        if ([excluded isKindOfClass:[NSDictionary class]]) {
+            [self setExclusions:[NSMutableArray arrayWithArray:[(NSDictionary*)excluded allKeys]]];
+        } else if ([excluded isKindOfClass:[NSArray class]]) {
+            [self setExclusions:[NSMutableArray arrayWithArray:(NSArray*)excluded]];
+        }
+    }else{
+        [self setExclusions:[NSMutableArray arrayWithCapacity:0]];
+    }
+    
 	NSMutableArray *excluded = [NSMutableArray arrayWithCapacity:0];
-		
+    
 	if (!self.tableView.editing || animated)
 	{
 		int s = 0;
@@ -112,19 +127,19 @@
 		
 		// Use temp objects so we can mutate as we are enumerating
 		NSMutableArray *sectionCopy;
-		NSMutableDictionary *tableDataCopy = [[tableData mutableCopy] autorelease];
+		NSMutableDictionary *tableDataCopy = [tableData mutableCopy];
 		NSMutableIndexSet *indexes = [[NSMutableIndexSet alloc] init];
-				
+        
 		for(NSMutableArray *section in tableDataCopy)
 		{
 			r = 0;
 			[indexes removeAllIndexes];
 			
-			sectionCopy = [[section mutableCopy] autorelease];
+			sectionCopy = [section mutableCopy];
 			
 			for (NSMutableDictionary *row in section)
 			{
-				if ([exclusions objectForKey:[row objectForKey:@"className"]])
+				if ([exclusions containsObject:[row objectForKey:@"className"]])
 				{
 					[excluded addObject:[NSIndexPath indexPathForRow:r inSection:s]];
 					
@@ -134,7 +149,7 @@
 				
 				r++;
 			}
-				
+            
 			if (!self.tableView.editing)
 			{
 				[sectionCopy removeObjectsAtIndexes:indexes];
@@ -144,7 +159,6 @@
 			s++;
 		}
 		
-		[indexes release];
 		
 		if (animated)
 		{
@@ -170,12 +184,12 @@
 	for( NSString *sharerClassName in source)
 	{
 		class = NSClassFromString(sharerClassName);
-		if ( [class canShare] && [class canShareType:item.shareType] )
+		if ( [class canShare] && [class canShareItem:item] )
 			[sectionData addObject:[NSDictionary dictionaryWithObjectsAndKeys:sharerClassName,@"className",[class sharerTitle],@"name",nil]];
 	}
-
+    
 	if (sectionData.count && [SHKCONFIG(shareMenuAlphabeticalOrder) boolValue])
-		[sectionData sortUsingDescriptors:[NSArray arrayWithObject:[[[NSSortDescriptor alloc] initWithKey:@"name" ascending:YES selector:@selector(localizedCaseInsensitiveCompare:)] autorelease]]];
+		[sectionData sortUsingDescriptors:[NSArray arrayWithObject:[[NSSortDescriptor alloc] initWithKey:@"name" ascending:YES selector:@selector(localizedCaseInsensitiveCompare:)]]];
 	
 	return sectionData;
 }
@@ -208,10 +222,10 @@
 {    
     static NSString *CellIdentifier = @"Cell";
     
-    SHKCustomShareMenuCell *cell = (SHKCustomShareMenuCell *)[tableView dequeueReusableCellWithIdentifier:CellIdentifier];
+    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:CellIdentifier];
     if (cell == nil)
 	{
-        cell = [[[SHKCustomShareMenuCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:CellIdentifier] autorelease];
+        cell = [[SHKCONFIG(SHKShareMenuCellSubclass) alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:CellIdentifier];
 		cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
 	}
     
@@ -223,10 +237,9 @@
 		UISwitch *toggle = [[UISwitch alloc] initWithFrame:CGRectZero];
 		toggle.userInteractionEnabled = NO;
 		cell.editingAccessoryView = toggle;
-		[toggle release];
 	}
 	
-	[(UISwitch *)cell.editingAccessoryView setOn:[exclusions objectForKey:[rowData objectForKey:@"className"]] == nil];
+	[(UISwitch *)cell.editingAccessoryView setOn:![exclusions containsObject:[rowData objectForKey:@"className"]]];
 	
     return cell;
 }
@@ -258,30 +271,31 @@
 		[toggle setOn:newOn animated:YES];
 		
 		if (newOn) {
-			[exclusions removeObjectForKey:[rowData objectForKey:@"className"]];
-		
+			[exclusions removeObject:[rowData objectForKey:@"className"]];
+            
 		} else {
 			NSString *sharerId = [rowData objectForKey:@"className"];
-			[exclusions setObject:@"1" forKey:sharerId];
+			[exclusions addObject:sharerId];
 			[SHK logoutOfService:sharerId];
 		}
-
+        
 		[self.tableView deselectRowAtIndexPath:indexPath animated:NO];
 	}
 	
 	else 
 	{
 		bool doShare = YES;
-		SHKSharer* sharer = [[[NSClassFromString([rowData objectForKey:@"className"]) alloc] init] autorelease];
+		SHKSharer* sharer = [[NSClassFromString([rowData objectForKey:@"className"]) alloc] init];
 		[sharer loadItem:item];
 		if (shareDelegate != nil && [shareDelegate respondsToSelector:@selector(aboutToShareItem:withSharer:)])
 		{
 			doShare = [shareDelegate aboutToShareItem:item withSharer:sharer];
 		}
-		if(doShare)
-			[sharer share];
 		
 		[[SHK currentHelper] hideCurrentViewControllerAnimated:YES];
+		
+		if(doShare)
+			self.limboSharer = sharer;
 	}
 }
 
@@ -318,9 +332,9 @@
 	[self.tableView setEditing:YES animated:YES];
 	[self rebuildTableDataAnimated:YES];
 	
-	[self.navigationItem setRightBarButtonItem:[[[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemDone
-																			 target:self
-																							  action:@selector(save)] autorelease] animated:YES];
+	[self.navigationItem setRightBarButtonItem:[[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemDone
+                                                                                              target:self
+																							  action:@selector(save)] animated:YES];
 }
 
 - (void)save
@@ -330,11 +344,9 @@
 	[self.tableView setEditing:NO animated:YES];
 	[self rebuildTableDataAnimated:YES];
 	
-	[self.navigationItem setRightBarButtonItem:[[[UIBarButtonItem alloc] initWithTitle:SHKLocalizedString(@"Edit")
-																				 style:UIBarButtonItemStyleBordered
+	[self.navigationItem setRightBarButtonItem:[[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemEdit
 																							  target:self
-																							  action:@selector(edit)] autorelease] animated:YES];
-	
+																							  action:@selector(edit)] animated:YES];	
 }
 
 @end

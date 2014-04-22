@@ -25,6 +25,14 @@
 
 #import "NSMutableURLRequest+Parameters.h"
 
+#import "PKMultipartInputStream.h"
+#import "SHKFile.h"
+#import "OARequestParameter.h"
+#import "OAMutableURLRequest.h"
+
+#import "NSURL+Base.h"
+
+static NSString *Boundary = @"-----------------------------------0xCoCoaouTHeBouNDaRy";
 
 @implementation NSMutableURLRequest (OAParameterAdditions)
 
@@ -89,8 +97,57 @@
         // POST, PUT
         NSData *postData = [encodedParameterPairs dataUsingEncoding:NSASCIIStringEncoding allowLossyConversion:YES];
         [self setHTTPBody:postData];
-        [self setValue:[NSString stringWithFormat:@"%d", [postData length]] forHTTPHeaderField:@"Content-Length"];
+        [self setValue:[NSString stringWithFormat:@"%lu", (unsigned long)[postData length]] forHTTPHeaderField:@"Content-Length"];
         [self setValue:@"application/x-www-form-urlencoded" forHTTPHeaderField:@"Content-Type"];
+    }
+}
+
+//taken from https://github.com/jdg/oauthconsumer/
+- (void)attachFileWithParameterName:(NSString *)name filename:(NSString*)filename contentType:(NSString *)contentType data:(NSData*)data {
+        
+	NSArray *parameters = [self parameters];
+	[self setValue:[@"multipart/form-data; boundary=" stringByAppendingString:Boundary] forHTTPHeaderField:@"Content-type"];
+    
+	NSMutableData *bodyData = [NSMutableData new];
+	for (OARequestParameter *parameter in parameters) {
+		NSString *param = [NSString stringWithFormat:@"--%@\r\nContent-Disposition: form-data; name=\"%@\"\r\n\r\n%@\r\n",
+						   Boundary, [parameter URLEncodedName], [parameter value]];
+        
+		[bodyData appendData:[param dataUsingEncoding:NSUTF8StringEncoding]];
+	}
+    
+	NSString *filePrefix = [NSString stringWithFormat:@"--%@\r\nContent-Disposition: form-data; name=\"%@\"; filename=\"%@\"\r\nContent-Type: %@\r\n\r\n",
+                            Boundary, name, filename, contentType];
+	[bodyData appendData:[filePrefix dataUsingEncoding:NSUTF8StringEncoding]];
+	[bodyData appendData:data];
+    
+	[bodyData appendData:[[[@"\r\n--" stringByAppendingString:Boundary] stringByAppendingString:@"--"] dataUsingEncoding:NSUTF8StringEncoding]];
+	[self setValue:[NSString stringWithFormat:@"%lu", (unsigned long)[bodyData length]] forHTTPHeaderField:@"Content-Length"];
+	[self setHTTPBody:bodyData];
+	[bodyData release];
+}
+
+- (void)attachFile:(SHKFile *)file withParameterName:(NSString *)name {
+    
+    if ([file hasPath]) {
+        
+        NSArray *parameters = [self parameters];
+        PKMultipartInputStream *body = [[PKMultipartInputStream alloc] init];
+        
+        for (OARequestParameter *parameter in parameters) {
+            [body addPartWithName:[parameter URLEncodedName] string:[parameter value]];
+        }
+        
+        [body addPartWithName:name path:file.path];
+        
+        [self setValue:[NSString stringWithFormat:@"multipart/form-data; boundary=%@", [body boundary]] forHTTPHeaderField:@"Content-Type"];
+        [self setValue:[NSString stringWithFormat:@"%lu", (unsigned long)[body length]] forHTTPHeaderField:@"Content-Length"];
+        [self setHTTPBodyStream:body];
+        [body release];
+
+    } else {
+        
+        [self attachFileWithParameterName:name filename:file.filename contentType:file.mimeType data:file.data];
     }
 }
 
